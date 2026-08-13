@@ -13,8 +13,13 @@ export async function onRequestPost(context) {
     【料理名】${foodName}
     【食材・補足】${ingredients}
 
-    必ず以下のJSON形式のみで出力してください：
-    {"englishName": "英語のメニュー名", "description": "英語の簡潔な説明文", "phrase": "提供時の接客フレーズ(英語)", "phraseJapanese": "接客フレーズ(日本語訳)"}`;
+    出力は必ず以下のJSONオブジェクト形式（キー名は英字そのまま）で行ってください。
+    {
+      "englishName": "英語のメニュー表記",
+      "description": "英語での料理説明",
+      "phrase": "提供時の接客フレーズ(英語)",
+      "phraseJapanese": "接客フレーズの日本語訳"
+    }`;
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
 
@@ -35,41 +40,71 @@ export async function onRequestPost(context) {
             return new Response(JSON.stringify({ error: `Gemini APIエラー: ${data.error.message}` }), { status: 500 });
         }
 
-        // 1. Interactions API の steps からAIの応答テキストを取り出す
+        // 1. steps から model_output のテキストのみを抽出
         let aiResponseText = "";
         if (data.steps && Array.isArray(data.steps)) {
-            const outputStep = data.steps.find(step => step.type === "model_output") || data.steps[data.steps.length - 1];
-            if (outputStep && outputStep.content) {
-                aiResponseText = outputStep.content.map(c => c.text || "").join("");
+            for (const step of data.steps) {
+                if (step.type === "model_output" && step.content) {
+                    for (const c of step.content) {
+                        if (c.type === "text" && c.text) {
+                            aiResponseText += c.text;
+                        }
+                    }
+                }
             }
         }
 
         if (!aiResponseText) {
-            return new Response(JSON.stringify({ error: "AIからの応答テキストが取得できませんでした。" }), { status: 500 });
+            return new Response(JSON.stringify({ error: `テキスト抽出失敗。生データ: ${JSON.stringify(data)}` }), { status: 500 });
         }
 
-        // 2. ```json などの余計な装飾を除去
+        // 2. 余計な記号を除去してパース
         const cleanedText = aiResponseText.replace(/```json/gi, "").replace(/```/g, "").trim();
-
-        // 3. JSONとしてパース
         let parsed = {};
         try {
             parsed = JSON.parse(cleanedText);
         } catch (e) {
-            return new Response(JSON.stringify({ error: `JSON解析失敗: ${cleanedText}` }), { status: 500 });
+            return new Response(JSON.stringify({ error: `JSONパース失敗。生テキスト: ${cleanedText}` }), { status: 500 });
         }
 
-        // 4. キー名の表記ブレ（english_nameなど）を吸収して整形
+        // 3. どんな構造やキー名で返ってきても自動で探し出す関数
+        const findKey = (obj, targetKeys) => {
+            if (!obj || typeof obj !== 'object') return "";
+            for (const key of Object.keys(obj)) {
+                if (targetKeys.includes(key.toLowerCase())) return obj[key];
+            }
+            for (const key of Object.keys(obj)) {
+                if (typeof obj[key] === 'object') {
+                    const found = findKey(obj[key], targetKeys);
+                    if (found) return found;
+                }
+            }
+            return "";
+        };
+
+        const englishName = findKey(parsed, ["englishname", "english_name", "english", "name", "title"]);
+        const description = findKey(parsed, ["description", "desc", "explanation", "details"]);
+        const phrase = findKey(parsed, ["phrase", "englishphrase", "english_phrase", "service_phrase"]);
+        const phraseJapanese = findKey(parsed, ["phrasejapanese", "phrase_japanese", "japanese_phrase", "japanese"]);
+
+        // もしAIの返したキーが全く特定できない場合は生のJSONを表示して原因特定する
+        if (!englishName && !description) {
+            return new Response(JSON.stringify({ 
+                error: `AIの返したJSONキー構造: ${JSON.stringify(parsed)}` 
+            }), { status: 500 });
+        }
+
         const resultObject = {
-            englishName: parsed.englishName || parsed.english_name || parsed.english || foodName,
-            description: parsed.description || parsed.desc || "",
-            phrase: parsed.phrase || parsed.english_phrase || "",
-            phraseJapanese: parsed.phraseJapanese || parsed.phrase_japanese || parsed.japanese_phrase || ""
+            englishName: englishName || foodName,
+            description: description || "",
+            phrase: phrase || "",
+            phraseJapanese: phraseJapanese || ""
         };
 
         return new Response(JSON.stringify(resultObject), {
             headers: { "Content-Type": "application/json" }
         });
+
     } catch (error) {
         return new Response(JSON.stringify({ error: `通信エラー詳細: ${error.message}` }), { status: 500 });
     }
