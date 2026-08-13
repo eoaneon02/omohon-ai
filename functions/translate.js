@@ -24,9 +24,9 @@ export async function onRequestPost(context) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: "gemini-2.5-flash",
+                model: "gemini-3.6-flash",
                 input: prompt,
-                response_format: { type: "json_object" }
+                response_format: { type: "object" }
             })
         });
 
