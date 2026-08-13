@@ -80,8 +80,8 @@
                     （${data.phraseJapanese}）</p>
                 `;
             } catch (error) {
-                resultContent.innerHTML = '<p style="color:#e74c3c;">エラーが発生しました。時間を置いて再度お試しください。</p>';
-                console.error(error);
+                // エラーの詳細メッセージを画面側に返すように変更
+                return new Response(JSON.stringify({ error: `API通信エラー詳細: ${error.message}` }), { status: 500 });
             } finally {
                 // ボタンを元の状態に戻す
                 submitBtn.disabled = false;
