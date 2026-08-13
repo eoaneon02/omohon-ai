@@ -16,15 +16,17 @@ export async function onRequestPost(context) {
     必ず以下のJSON形式のみで出力し、他の文章は一切含めないでください。
     {"englishName": "英語のメニュー名", "description": "英語の簡潔な説明文", "phrase": "提供時の接客フレーズ(英語)", "phraseJapanese": "接客フレーズ(日本語訳)"}`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+    // Interactions API のエンドポイント
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
 
     try {
         const response = await fetch(geminiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { response_mime_type: "application/json" }
+                model: "gemini-2.5-flash",
+                input: prompt,
+                response_format: { type: "json_object" }
             })
         });
 
@@ -34,7 +36,8 @@ export async function onRequestPost(context) {
             return new Response(JSON.stringify({ error: `Gemini APIエラー: ${data.error.message}` }), { status: 500 });
         }
 
-        const aiResponseText = data.candidates[0].content.parts[0].text;
+        // Interactions API のレスポンス構造からテキストを取得
+        const aiResponseText = data.output[0].text;
 
         return new Response(aiResponseText, {
             headers: { "Content-Type": "application/json" }
