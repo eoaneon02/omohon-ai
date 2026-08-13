@@ -16,7 +16,6 @@ export async function onRequestPost(context) {
     必ず以下のJSON形式のみで出力し、他の文章は一切含めないでください。
     {"englishName": "英語のメニュー名", "description": "英語の簡潔な説明文", "phrase": "提供時の接客フレーズ(英語)", "phraseJapanese": "接客フレーズ(日本語訳)"}`;
 
-    // Interactions API のエンドポイント
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
 
     try {
@@ -32,12 +31,22 @@ export async function onRequestPost(context) {
 
         const data = await response.json();
 
+        // エラーが含まれている場合はそれを返す
         if (data.error) {
             return new Response(JSON.stringify({ error: `Gemini APIエラー: ${data.error.message}` }), { status: 500 });
         }
 
-        // Interactions API のレスポンス構造からテキストを取得
-        const aiResponseText = data.output[0].text;
+        let aiResponseText = "";
+
+        // データの形をチェックして、見つからなければ生のデータをそのままエラーとして画面に出力する
+        if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+            aiResponseText = data.candidates[0].content.parts[0].text;
+        } else if (data.output && data.output[0]) {
+            aiResponseText = data.output[0].text;
+        } else {
+            // ★ここが発動して、Googleからの実際の返答が画面に出るはずです！
+            throw new Error(`Googleからの実際の応答: ${JSON.stringify(data)}`);
+        }
 
         return new Response(aiResponseText, {
             headers: { "Content-Type": "application/json" }
