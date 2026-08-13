@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 検索エンジンに載せない設定 -->
+    <meta name="robots" content="noindex, nofollow">
+    <title>メニュー翻訳AIツール</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f7f9fa; padding: 20px; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h2 { border-bottom: 2px solid #3498db; padding-bottom: 5px; margin-top: 0; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9em; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #3498db; color: white; padding: 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; font-weight: bold; width: 100%; }
+        button:hover { background-color: #2980b9; }
+        #result-area { margin-top: 20px; padding: 15px; background-color: #e8f6f3; border-left: 4px solid #1abc9c; display: none; }
+        .result-title { font-weight: bold; color: #16a085; font-size: 1.1em; margin-top:0;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>メニュー英語変換ツール (AI連携版)</h2>
+        <div class="form-group">
+            <label>料理名（必須）</label>
+            <input type="text" id="foodName" placeholder="例：治部煮、豚汁、海峡の宝箱">
+        </div>
+        <div class="form-group">
+            <label>メイン食材・調理法（任意）</label>
+            <input type="text" id="ingredients" placeholder="例：旬の海鮮丼 / 豚肉と野菜の味噌汁">
+        </div>
+        <button onclick="generateTranslation()" id="submitBtn">英語メニューを生成する</button>
+
+        <div id="result-area">
+            <p class="result-title">■ 生成結果</p>
+            <div id="result-content"></div>
+        </div>
+    </div>
+
+    <script>
+        async function generateTranslation() {
+            const foodName = document.getElementById('foodName').value;
+            const ingredients = document.getElementById('ingredients').value;
+            const resultArea = document.getElementById('result-area');
+            const resultContent = document.getElementById('result-content');
+            const submitBtn = document.getElementById('submitBtn');
+
+            if(!foodName) {
+                alert("料理名を入力してください。");
+                return;
+            }
+
+            // 処理中の表示切替
+            resultArea.style.display = 'block';
+            resultContent.innerHTML = '<p style="color:#666;">AIが翻訳を生成しています... ⏳</p>';
+            submitBtn.disabled = true;
+            submitBtn.textContent = '生成中...';
+
+            try {
+                // さきほど作った functions/translate.js に通信を送る
+                const response = await fetch('/translate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ foodName: foodName, ingredients: ingredients })
+                });
+
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error);
+
+                // AIから返ってきた結果を画面に埋め込む
+                resultContent.innerHTML = `
+                    <p><strong>【メニュー表記】</strong><br>
+                    ${data.englishName}<br>
+                    <span style="font-size:0.9em; color:#555;">${data.description}</span></p>
+
+                    <p><strong>【接客ワンフレーズ】</strong><br>
+                    ${data.phrase}<br>
+                    （${data.phraseJapanese}）</p>
+                `;
+            } catch (error) {
+                resultContent.innerHTML = '<p style="color:#e74c3c;">エラーが発生しました。時間を置いて再度お試しください。</p>';
+                console.error(error);
+            } finally {
+                // ボタンを元の状態に戻す
+                submitBtn.disabled = false;
+                submitBtn.textContent = '英語メニューを生成する';
+            }
+        }
+    </script>
+</body>
+</html>
