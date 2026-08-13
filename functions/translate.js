@@ -1,104 +1,94 @@
 export async function onRequestPost(context) {
-    const requestBody = await context.request.json();
-    const foodName = requestBody.foodName || "";
-    const ingredients = requestBody.ingredients || "";
-
-    const apiKey = context.env.GEMINI_API_KEY;
-
-    if (!apiKey) {
-        return new Response(JSON.stringify({ error: "Cloudflare側に GEMINI_API_KEY が設定されていません" }), { status: 500 });
-    }
-
-    const prompt = `あなたは優秀な翻訳家です。日本の飲食店メニューを外国人向けに英語化してください。
-    【料理名】${foodName}
-    【食材・補足】${ingredients}
-
-    出力は必ず以下のJSONオブジェクト形式（キー名は英字そのまま）で行ってください。
-    {
-      "englishName": "英語のメニュー表記",
-      "description": "英語での料理説明",
-      "phrase": "提供時の接客フレーズ(英語)",
-      "phraseJapanese": "接客フレーズの日本語訳"
-    }`;
-
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
-
     try {
-        const response = await fetch(geminiUrl, {
+        // リクエストボディの取得
+        const requestBody = await context.request.json();
+        const foodName = requestBody.foodName || "";
+        const ingredients = requestBody.ingredients || "";
+
+        if (!foodName) {
+            return new Response(JSON.stringify({ error: "料理名が入力されていません。" }), { 
+                status: 400,
+                headers: { "Content-Type": "application/json" }
+            });
+        }
+
+        const apiKey = context.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            return new Response(JSON.stringify({ error: "Cloudflare側に GEMINI_API_KEY が設定されていません。" }), { 
+                status: 500,
+                headers: { "Content-Type": "application/json" }
+            });
+        }
+
+        // プロンプトの定義
+        const prompt = `あなたは優秀な翻訳家です。日本の飲食店メニューを外国人向けに英語化してください。
+【料理名】${foodName}
+【食材・補足】${ingredients}
+
+必ず以下のJSONフォーマットのみで出力してください（マークダウンのバッククォートなども含めず、純粋なJSON文字列のみを返してください）：
+{
+  "englishName": "英語のメニュー表記",
+  "description": "英語での簡潔な料理説明",
+  "phrase": "提供時の接客フレーズ(英語)",
+  "phraseJapanese": "接客フレーズの日本語訳"
+}`;
+
+        // 安定版のエンドポイント（gemini-2.0-flash）
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+
+        const apiResponse = await fetch(geminiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: "gemini-3.6-flash",
-                input: prompt,
-                response_format: { type: "object" }
+                contents: [{
+                    parts: [{ text: prompt }]
+                }],
+                generationConfig: {
+                    // APIレベルでJSON出力を強制する最新仕様
+                    response_mime_type: "application/json",
+                    temperature: 0.3
+                }
             })
         });
 
-        const data = await response.json();
+        const data = await apiResponse.json();
 
+        // API側からのエラーチェック
         if (data.error) {
-            return new Response(JSON.stringify({ error: `Gemini APIエラー: ${data.error.message}` }), { status: 500 });
+            return new Response(JSON.stringify({ error: `Gemini APIエラー: ${data.error.message}` }), { 
+                status: 500,
+                headers: { "Content-Type": "application/json" }
+            });
         }
 
-        // 1. steps から model_output のテキストのみを抽出
-        let aiResponseText = "";
-        if (data.steps && Array.isArray(data.steps)) {
-            for (const step of data.steps) {
-                if (step.type === "model_output" && step.content) {
-                    for (const c of step.content) {
-                        if (c.type === "text" && c.text) {
-                            aiResponseText += c.text;
-                        }
-                    }
-                }
-            }
+        // レスポンスからテキストを安全に抽出
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!rawText) {
+            return new Response(JSON.stringify({ error: "AIからの応答テキストが空でした。" }), { 
+                status: 500,
+                headers: { "Content-Type": "application/json" }
+            });
         }
 
-        if (!aiResponseText) {
-            return new Response(JSON.stringify({ error: `テキスト抽出失敗。生データ: ${JSON.stringify(data)}` }), { status: 500 });
-        }
-
-        // 2. 余計な記号を除去してパース
-        const cleanedText = aiResponseText.replace(/```json/gi, "").replace(/```/g, "").trim();
-        let parsed = {};
+        // マークダウンや余計な空白を徹底的に除去してパース
+        const cleanedText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+        
+        let parsedJson;
         try {
-            parsed = JSON.parse(cleanedText);
-        } catch (e) {
-            return new Response(JSON.stringify({ error: `JSONパース失敗。生テキスト: ${cleanedText}` }), { status: 500 });
+            parsedJson = JSON.parse(cleanedText);
+        } catch (parseError) {
+            return new Response(JSON.stringify({ error: `JSONパースエラー: ${cleanedText}` }), { 
+                status: 500,
+                headers: { "Content-Type": "application/json" }
+            });
         }
 
-        // 3. どんな構造やキー名で返ってきても自動で探し出す関数
-        const findKey = (obj, targetKeys) => {
-            if (!obj || typeof obj !== 'object') return "";
-            for (const key of Object.keys(obj)) {
-                if (targetKeys.includes(key.toLowerCase())) return obj[key];
-            }
-            for (const key of Object.keys(obj)) {
-                if (typeof obj[key] === 'object') {
-                    const found = findKey(obj[key], targetKeys);
-                    if (found) return found;
-                }
-            }
-            return "";
-        };
-
-        const englishName = findKey(parsed, ["englishname", "english_name", "english", "name", "title"]);
-        const description = findKey(parsed, ["description", "desc", "explanation", "details"]);
-        const phrase = findKey(parsed, ["phrase", "englishphrase", "english_phrase", "service_phrase"]);
-        const phraseJapanese = findKey(parsed, ["phrasejapanese", "phrase_japanese", "japanese_phrase", "japanese"]);
-
-        // もしAIの返したキーが全く特定できない場合は生のJSONを表示して原因特定する
-        if (!englishName && !description) {
-            return new Response(JSON.stringify({ 
-                error: `AIの返したJSONキー構造: ${JSON.stringify(parsed)}` 
-            }), { status: 500 });
-        }
-
+        // データの整合性を保ちつつオブジェクトを構築（フォールバック付き）
         const resultObject = {
-            englishName: englishName || foodName,
-            description: description || "",
-            phrase: phrase || "",
-            phraseJapanese: phraseJapanese || ""
+            englishName: parsedJson.englishName || parsedJson.english_name || foodName,
+            description: parsedJson.description || parsedJson.desc || "",
+            phrase: parsedJson.phrase || "",
+            phraseJapanese: parsedJson.phraseJapanese || parsedJson.phrase_japanese || ""
         };
 
         return new Response(JSON.stringify(resultObject), {
@@ -106,6 +96,9 @@ export async function onRequestPost(context) {
         });
 
     } catch (error) {
-        return new Response(JSON.stringify({ error: `通信エラー詳細: ${error.message}` }), { status: 500 });
+        return new Response(JSON.stringify({ error: `サーバー内部エラー: ${error.message}` }), { 
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+        });
     }
 }
