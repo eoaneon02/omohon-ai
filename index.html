@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- 検索エンジンに載せない設定 -->
     <meta name="robots" content="noindex, nofollow">
     <title>メニュー翻訳AIツール</title>
     <style>
@@ -51,14 +50,12 @@
                 return;
             }
 
-            // 処理中の表示切替
             resultArea.style.display = 'block';
             resultContent.innerHTML = '<p style="color:#666;">AIが翻訳を生成しています... ⏳</p>';
             submitBtn.disabled = true;
             submitBtn.textContent = '生成中...';
 
             try {
-                // さきほど作った functions/translate.js に通信を送る
                 const response = await fetch('/translate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -69,21 +66,20 @@
 
                 if (data.error) throw new Error(data.error);
 
-                // AIから返ってきた結果を画面に埋め込む
                 resultContent.innerHTML = `
                     <p><strong>【メニュー表記】</strong><br>
                     ${data.englishName}<br>
                     <span style="font-size:0.9em; color:#555;">${data.description}</span></p>
-
+                    
                     <p><strong>【接客ワンフレーズ】</strong><br>
                     ${data.phrase}<br>
                     （${data.phraseJapanese}）</p>
                 `;
             } catch (error) {
-                // エラーの詳細メッセージを画面側に返すように変更
-                return new Response(JSON.stringify({ error: `API通信エラー詳細: ${error.message}` }), { status: 500 });
+                // エラーの詳細メッセージを赤文字で表示
+                resultContent.innerHTML = `<p style="color:#e74c3c;">${error.message}</p>`;
+                console.error(error);
             } finally {
-                // ボタンを元の状態に戻す
                 submitBtn.disabled = false;
                 submitBtn.textContent = '英語メニューを生成する';
             }
