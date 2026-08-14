@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>メニュー翻訳AIツール</title>
+    <title>メニュー翻訳 - おもてなし翻訳AI</title>
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f7f9fa; padding: 20px; color: #333; margin: 0; }
         .container { max-width: 600px; margin: 20px auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
@@ -23,7 +23,7 @@
 </head>
 <body>
     <div class="container">
-        <h2>メニュー英語変換ツール</h2>
+        <h2>メニューを英語に翻訳</h2>
         <div class="form-group">
             <label for="foodName">料理名（必須）</label>
             <input type="text" id="foodName" placeholder="例：シェフの気まぐれパスタ">
@@ -53,7 +53,7 @@
 
     <!-- フッター（コピーライト表記） -->
     <footer>
-        &copy; 2026 omohon-ai. All rights reserved.
+        &copy; 2026 omotenashi-honnyaku. All rights reserved.
     </footer>
 
     <script>
@@ -88,9 +88,10 @@
                 }
 
                 resultContent.innerHTML = `
-                    <p><strong>【メニュー表記】</strong><br>
-                    <span style="font-size: 1.1em; color: #2c3e50;">${data.englishName}</span><br>
-                    <span style="font-size:0.9em; color:#555;">${data.description}</span></p>
+                    <p><strong>【料理名】</strong><br>
+                    <span style="font-size:1.1em; color:#2c3e50;">${data.englishName}</span></p><br>
+                    <p><strong>【料理の説明】</strong><br>
+                    <span style="font-size:0.9em; color:#2c3e50;">${data.description}</span></p>
                     
                     <p><strong>【接客ワンフレーズ】</strong><br>
                     <span style="font-style: italic; color: #2c3e50;">"${data.phrase}"</span><br>
