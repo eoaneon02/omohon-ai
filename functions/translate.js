@@ -30,17 +30,16 @@ export async function onRequestPost(context) {
 }`;
 
         // Interactions API エンドポイント
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
+        const geminiUrl = `[https://generativelanguage.googleapis.com/v1beta/interactions?key=$](https://generativelanguage.googleapis.com/v1beta/interactions?key=$){apiKey}`;
         
         const apiResponse = await fetch(geminiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 model: "gemini-flash",
-                input: prompt, // Interactions API仕様: 入力は 'input'
-                generation_config: { // Interactions API仕様: スネークケース表記
-                    response_mime_type: "application/json"
-                }
+                input: prompt
+                // generation_config はパラメータエラーを引き起こすため完全削除。
+                // プロンプトの指示と、後段の強力なパース処理でJSON化を担保します。
             })
         });
 
@@ -69,7 +68,7 @@ export async function onRequestPost(context) {
             throw new Error(`AIからの応答を取得できませんでした。\nAPIレスポンス: ${JSON.stringify(data)}`);
         }
 
-        // JSONのクレンジングとパース
+        // JSONのクレンジング（```json などのマークダウン装飾を剥がす）とパース
         const cleanedText = aiResponseText.replace(/```json/gi, "").replace(/```/g, "").trim();
         let parsed;
         try {
