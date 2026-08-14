@@ -29,18 +29,20 @@ export async function onRequestPost(context) {
   "phraseJapanese": "接客フレーズの日本語訳"
 }`;
 
-        // 正しい Gemini API エンドポイント (generateContent)
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+        // 公式推奨の Interactions API エンドポイント
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
         
         const apiResponse = await fetch(geminiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+                // バージョン切れを防ぐため、常に最新版が呼ばれるエイリアスを使用
+                model: "gemini-flash",
+                // APIが正しくプロンプトを認識できる標準構造
                 contents: [{
                     parts: [{ text: prompt }]
                 }],
                 generationConfig: {
-                    // AIに必ずJSON形式で出力させるための公式設定
                     responseMimeType: "application/json"
                 }
             })
@@ -52,25 +54,32 @@ export async function onRequestPost(context) {
             throw new Error(data.error?.message || "Gemini APIとの通信に失敗しました。");
         }
 
-        // generateContent の仕様に沿ったデータ抽出
+        // Interactions APIの仕様 (steps配列) に対応したデータ抽出
         let aiResponseText = "";
-        if (data.candidates && data.candidates[0]?.content?.parts) {
+        
+        if (Array.isArray(data.steps)) {
+            const outputStep = data.steps.find(step => step.type === "model_output") || data.steps[data.steps.length - 1];
+            if (outputStep?.content) {
+                aiResponseText = outputStep.content.map(c => c.text || "").join("");
+            }
+        } else if (data.candidates && data.candidates[0]?.content?.parts) {
+            // 従来の形式で返ってきた場合の保険
             aiResponseText = data.candidates[0].content.parts.map(p => p.text || "").join("");
         }
 
         if (!aiResponseText || aiResponseText === "{}") {
-            throw new Error(`AIからの応答が空でした。\n生データ: ${JSON.stringify(data)}`);
+            throw new Error(`AIからの応答が空でした。\n生データ: ${JSON.stringify(data).substring(0, 300)}...`);
         }
 
-        // JSON文字列のパース
+        const cleanedText = aiResponseText.replace(/```json/gi, "").replace(/```/g, "").trim();
         let parsed;
         try {
-            parsed = JSON.parse(aiResponseText);
+            parsed = JSON.parse(cleanedText);
         } catch (e) {
-            throw new Error(`AIがJSON以外のテキストを返しました。\n内容: ${aiResponseText}`);
+            throw new Error(`AIがJSON以外のテキストを返しました。\n内容: ${cleanedText}`);
         }
 
-        // どんな階層にキーがあっても探し出す再帰関数
+        // 強力なキー検索ロジック
         const findKey = (obj, targetKeys) => {
             if (!obj || typeof obj !== 'object') return "";
             
