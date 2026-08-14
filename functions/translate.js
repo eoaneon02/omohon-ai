@@ -36,7 +36,7 @@ export async function onRequestPost(context) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: "gemini-2.0-flash", // 安定稼働モデル
+                model: "gemini-3.6-flash", // 安定稼働モデル
                 input: prompt,
                 response_format: { type: "object" }
             })
