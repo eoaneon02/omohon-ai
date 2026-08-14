@@ -87,15 +87,18 @@
                     throw new Error(data.error || "通信に失敗しました。");
                 }
 
-                resultContent.innerHTML = `
-                    <p><strong>【料理名】</strong><br>
-                    <span style="font-size:1.1em; color:#2c3e50;">${data.englishName}</span></p>
-                    <p><strong>【料理の説明】</strong><br>
-                    <span style="font-size:0.9em; color:#2c3e50;">${data.description}</span></p>
-                    
-                    <p><strong>【接客ワンフレーズ】</strong><br>
-                    <span style="font-style: italic; color: #2c3e50;">"${data.phrase}"</span><br>
-                    <span style="font-size: 0.9em; color: #555;">（${data.phraseJapanese}）</span></p>
+                resultDiv.innerHTML = `
+                    <h4 style="font-weight: bold; margin-top: 15px;">【料理名】</h4>
+                    <p style="font-size: 1.1em; color: #2c3e50;">${data.englishName}</p>
+                    <p style="color: #7f8c8d; font-size: 0.9em; margin-bottom: 15px;">（${data.englishNameJapanese}）</p>
+
+                    <h4 style="font-weight: bold;">【料理の説明】</h4>
+                    <p style="color: #2c3e50;">${data.description}</p>
+                    <p style="color: #7f8c8d; font-size: 0.9em; margin-bottom: 15px;">（${data.descriptionJapanese}）</p>
+
+                    <h4 style="font-weight: bold;">【接客ワンフレーズ】</h4>
+                    <p style="font-style: italic; color: #2c3e50;">"${data.phrase}"</p>
+                    <p style="color: #7f8c8d; font-size: 0.9em;">（${data.phraseJapanese}）</p>
                 `;
             } catch (error) {
                 resultContent.innerHTML = `<div class="error-text"><strong>エラーが発生しました:</strong><br>${error.message}</div>`;
