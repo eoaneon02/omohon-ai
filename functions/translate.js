@@ -29,10 +29,10 @@ export async function onRequestPost(context) {
   "phraseJapanese": "接客フレーズの日本語訳"
 }`;
 
-        // 【重要】コピー時にURLが勝手にリンク化して壊れるのを防ぐため、文字列を分割して結合します
+        // コピー時にURLがリンク化して壊れるのを防ぐための分割結合
         const baseUrl = "https://generativelanguage.googleapis.com";
-        // 安定動作する最新モデル(1.5-flash)と、従来の安定したエンドポイントを使用
-        const endpoint = "/v1beta/models/gemini-3.6-flash:generateContent";
+        // 【重要】バージョン番号を省略し「gemini-flash」とだけ指定することで、常に最新版が自動適用されます
+        const endpoint = "/v1beta/models/gemini-flash:generateContent";
         const geminiUrl = baseUrl + endpoint + "?key=" + apiKey;
         
         const apiResponse = await fetch(geminiUrl, {
