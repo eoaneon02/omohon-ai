@@ -1,104 +1,96 @@
 export async function onRequestPost(context) {
     try {
-        // リクエストボディの取得
         const requestBody = await context.request.json();
-        const foodName = requestBody.foodName || "";
-        const ingredients = requestBody.ingredients || "";
+        const foodName = requestBody.foodName?.trim() || "";
+        const ingredients = requestBody.ingredients?.trim() || "";
 
         if (!foodName) {
             return new Response(JSON.stringify({ error: "料理名が入力されていません。" }), { 
-                status: 400,
-                headers: { "Content-Type": "application/json" }
+                status: 400, headers: { "Content-Type": "application/json" } 
             });
         }
 
         const apiKey = context.env.GEMINI_API_KEY;
         if (!apiKey) {
-            return new Response(JSON.stringify({ error: "Cloudflare側に GEMINI_API_KEY が設定されていません。" }), { 
-                status: 500,
-                headers: { "Content-Type": "application/json" }
+            return new Response(JSON.stringify({ error: "APIキーが設定されていません。" }), { 
+                status: 500, headers: { "Content-Type": "application/json" } 
             });
         }
 
-        // プロンプトの定義
+        // プロンプト定義
         const prompt = `あなたは優秀な翻訳家です。日本の飲食店メニューを外国人向けに英語化してください。
 【料理名】${foodName}
 【食材・補足】${ingredients}
 
-必ず以下のJSONフォーマットのみで出力してください（マークダウンのバッククォートなども含めず、純粋なJSON文字列のみを返してください）：
+出力は必ず以下のJSONオブジェクト形式（キー名は英字そのまま）で行ってください。
 {
   "englishName": "英語のメニュー表記",
-  "description": "英語での簡潔な料理説明",
+  "description": "英語での料理説明",
   "phrase": "提供時の接客フレーズ(英語)",
   "phraseJapanese": "接客フレーズの日本語訳"
 }`;
 
-        // 安定版のエンドポイント（gemini-2.0-flash）
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
-
+        // Gemini Interactions API エンドポイント
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
+        
         const apiResponse = await fetch(geminiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: prompt }]
-                }],
-                generationConfig: {
-                    // APIレベルでJSON出力を強制する最新仕様
-                    response_mime_type: "application/json",
-                    temperature: 0.3
-                }
+                model: "gemini-3.6-flash",
+                input: prompt,
+                response_format: { type: "object" }
             })
         });
 
         const data = await apiResponse.json();
 
-        // API側からのエラーチェック
-        if (data.error) {
-            return new Response(JSON.stringify({ error: `Gemini APIエラー: ${data.error.message}` }), { 
-                status: 500,
-                headers: { "Content-Type": "application/json" }
-            });
+        if (!apiResponse.ok || data.error) {
+            throw new Error(data.error?.message || "Gemini APIとの通信に失敗しました。");
         }
 
-        // レスポンスからテキストを安全に抽出
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!rawText) {
-            return new Response(JSON.stringify({ error: "AIからの応答テキストが空でした。" }), { 
-                status: 500,
-                headers: { "Content-Type": "application/json" }
-            });
+        // Interactions APIの仕様に沿った堅牢なレスポンス抽出 (steps配列からmodel_outputを取得)
+        let aiResponseText = "";
+        if (Array.isArray(data.steps)) {
+            const outputStep = data.steps.find(step => step.type === "model_output") || data.steps[data.steps.length - 1];
+            if (outputStep?.content) {
+                aiResponseText = outputStep.content.map(c => c.text || "").join("");
+            }
         }
 
-        // マークダウンや余計な空白を徹底的に除去してパース
-        const cleanedText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-        
-        let parsedJson;
-        try {
-            parsedJson = JSON.parse(cleanedText);
-        } catch (parseError) {
-            return new Response(JSON.stringify({ error: `JSONパースエラー: ${cleanedText}` }), { 
-                status: 500,
-                headers: { "Content-Type": "application/json" }
-            });
+        if (!aiResponseText) {
+            throw new Error("AIからの応答テキストを抽出できませんでした。");
         }
 
-        // データの整合性を保ちつつオブジェクトを構築（フォールバック付き）
+        // JSON文字列のクレンジングとパース
+        const cleanedText = aiResponseText.replace(/```json/gi, "").replace(/```/g, "").trim();
+        const parsed = JSON.parse(cleanedText);
+
+        // キー名の表記ブレを吸収する堅牢な抽出ロジック（小文字化してマッチング）
+        const findKey = (obj, targetKeys) => {
+            if (!obj || typeof obj !== 'object') return "";
+            const lowerKeys = Object.keys(obj).reduce((acc, k) => ({ ...acc, [k.toLowerCase()]: obj[k] }), {});
+            for (const key of targetKeys) {
+                if (lowerKeys[key] !== undefined) return lowerKeys[key];
+            }
+            return "";
+        };
+
         const resultObject = {
-            englishName: parsedJson.englishName || parsedJson.english_name || foodName,
-            description: parsedJson.description || parsedJson.desc || "",
-            phrase: parsedJson.phrase || "",
-            phraseJapanese: parsedJson.phraseJapanese || parsedJson.phrase_japanese || ""
+            englishName: findKey(parsed, ["englishname", "english_name", "english", "name"]) || foodName,
+            description: findKey(parsed, ["description", "desc", "explanation"]) || "",
+            phrase: findKey(parsed, ["phrase", "englishphrase", "english_phrase"]) || "",
+            phraseJapanese: findKey(parsed, ["phrasejapanese", "phrase_japanese", "japanese_phrase"]) || ""
         };
 
         return new Response(JSON.stringify(resultObject), {
+            status: 200,
             headers: { "Content-Type": "application/json" }
         });
 
     } catch (error) {
-        return new Response(JSON.stringify({ error: `サーバー内部エラー: ${error.message}` }), { 
-            status: 500,
-            headers: { "Content-Type": "application/json" }
+        return new Response(JSON.stringify({ error: `サーバー処理エラー: ${error.message}` }), { 
+            status: 500, headers: { "Content-Type": "application/json" } 
         });
     }
 }
