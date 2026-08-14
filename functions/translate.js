@@ -32,7 +32,7 @@ export async function onRequestPost(context) {
         // コピー時にURLがリンク化して壊れるのを防ぐための分割結合
         const baseUrl = "https://generativelanguage.googleapis.com";
         // 【重要】バージョン番号を省略し「gemini-flash」とだけ指定することで、常に最新版が自動適用されます
-        const endpoint = "/v1beta/models/gemini-flash:generateContent";
+        const endpoint = "/v1beta/models/gemini-3.6-flash:generateContent";
         const geminiUrl = baseUrl + endpoint + "?key=" + apiKey;
         
         const apiResponse = await fetch(geminiUrl, {
