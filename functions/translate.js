@@ -29,17 +29,22 @@ export async function onRequestPost(context) {
   "phraseJapanese": "接客フレーズの日本語訳"
 }`;
 
-        // Interactions API エンドポイント
-        const geminiUrl = `[https://generativelanguage.googleapis.com/v1beta/interactions?key=$](https://generativelanguage.googleapis.com/v1beta/interactions?key=$){apiKey}`;
+        // 【重要】コピー時にURLが勝手にリンク化して壊れるのを防ぐため、文字列を分割して結合します
+        const baseUrl = "https://generativelanguage.googleapis.com";
+        // 安定動作する最新モデル(1.5-flash)と、従来の安定したエンドポイントを使用
+        const endpoint = "/v1beta/models/gemini-3.6-flash:generateContent";
+        const geminiUrl = baseUrl + endpoint + "?key=" + apiKey;
         
         const apiResponse = await fetch(geminiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: "gemini-flash",
-                input: prompt
-                // generation_config はパラメータエラーを引き起こすため完全削除。
-                // プロンプトの指示と、後段の強力なパース処理でJSON化を担保します。
+                contents: [{
+                    parts: [{ text: prompt }]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json"
+                }
             })
         });
 
@@ -49,26 +54,14 @@ export async function onRequestPost(context) {
             throw new Error(data.error?.message || "Gemini APIとの通信に失敗しました。");
         }
 
-        // Interactions APIのレスポンス（steps配列）からテキストを抽出
-        let aiResponseText = "";
-        if (Array.isArray(data.steps)) {
-            const outputStep = data.steps.find(step => step.type === "model_output") || data.steps[data.steps.length - 1];
-            if (outputStep?.content) {
-                aiResponseText = outputStep.content
-                    .map(c => (typeof c === "string" ? c : c.text || ""))
-                    .join("");
-            }
-        } else if (data.outputs) {
-            aiResponseText = typeof data.outputs === "string" ? data.outputs : JSON.stringify(data.outputs);
-        } else if (data.candidates && data.candidates[0]?.content?.parts) {
-            aiResponseText = data.candidates[0].content.parts.map(p => p.text || "").join("");
-        }
+        // 従来APIの安定したレスポンス構造からテキストを抽出
+        const aiResponseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-        if (!aiResponseText || aiResponseText === "{}") {
+        if (!aiResponseText) {
             throw new Error(`AIからの応答を取得できませんでした。\nAPIレスポンス: ${JSON.stringify(data)}`);
         }
 
-        // JSONのクレンジング（```json などのマークダウン装飾を剥がす）とパース
+        // JSONのクレンジングとパース
         const cleanedText = aiResponseText.replace(/```json/gi, "").replace(/```/g, "").trim();
         let parsed;
         try {
@@ -77,7 +70,7 @@ export async function onRequestPost(context) {
             throw new Error(`AIがJSON以外のテキストを返しました。\n内容: ${cleanedText}`);
         }
 
-        // キー検索関数（表記ブレの吸収）
+        // 強力なキー検索ロジック
         const findKey = (obj, targetKeys) => {
             if (!obj || typeof obj !== 'object') return "";
             const lowerKeys = Object.keys(obj).reduce((acc, k) => ({ ...acc, [k.toLowerCase()]: obj[k] }), {});
