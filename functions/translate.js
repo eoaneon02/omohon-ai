@@ -29,11 +29,8 @@ export async function onRequestPost(context) {
   "phraseJapanese": "接客フレーズの日本語訳"
 }`;
 
-        // コピー時にURLがリンク化して壊れるのを防ぐための分割結合
-        const baseUrl = "https://generativelanguage.googleapis.com";
-        // 【重要】バージョン番号を省略し「gemini-flash」とだけ指定することで、常に最新版が自動適用されます
-        const endpoint = "/v1beta/models/gemini-3.6-flash:generateContent";
-        const geminiUrl = baseUrl + endpoint + "?key=" + apiKey;
+        // シンプルな1行記述（モデル名を明示的に指定）
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
         
         const apiResponse = await fetch(geminiUrl, {
             method: "POST",
@@ -54,7 +51,7 @@ export async function onRequestPost(context) {
             throw new Error(data.error?.message || "Gemini APIとの通信に失敗しました。");
         }
 
-        // 従来APIの安定したレスポンス構造からテキストを抽出
+        // レスポンスからテキストを抽出
         const aiResponseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
         if (!aiResponseText) {
@@ -70,7 +67,7 @@ export async function onRequestPost(context) {
             throw new Error(`AIがJSON以外のテキストを返しました。\n内容: ${cleanedText}`);
         }
 
-        // 強力なキー検索ロジック
+        // キー検索ロジック
         const findKey = (obj, targetKeys) => {
             if (!obj || typeof obj !== 'object') return "";
             const lowerKeys = Object.keys(obj).reduce((acc, k) => ({ ...acc, [k.toLowerCase()]: obj[k] }), {});
