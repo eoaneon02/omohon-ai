@@ -42,7 +42,7 @@ export async function onRequestPost(context) {
                 contents: [{
                     parts: [{ text: prompt }]
                 }],
-                generationConfig: {
+                generation_config: {
                     responseMimeType: "application/json"
                 }
             })
