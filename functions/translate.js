@@ -30,7 +30,7 @@ export async function onRequestPost(context) {
 }`;
 
         // 正しい Gemini API エンドポイント (generateContent)
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
         
         const apiResponse = await fetch(geminiUrl, {
             method: "POST",
