@@ -17,7 +17,6 @@ export async function onRequestPost(context) {
             });
         }
 
-        // プロンプト定義
         const prompt = `あなたは優秀な翻訳家です。日本の飲食店メニューを外国人向けに英語化してください。
 【料理名】${foodName}
 【食材・補足】${ingredients}
@@ -37,7 +36,7 @@ export async function onRequestPost(context) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: "gemini-3.6-flash",
+                model: "gemini-2.0-flash", // 安定稼働モデル
                 input: prompt,
                 response_format: { type: "object" }
             })
@@ -49,39 +48,64 @@ export async function onRequestPost(context) {
             throw new Error(data.error?.message || "Gemini APIとの通信に失敗しました。");
         }
 
-        // Interactions APIの仕様に沿った堅牢なレスポンス抽出 (steps配列からmodel_outputを取得)
+        // 1. データの抽出 (Interactions形式 と 従来形式 の両方に自動対応)
         let aiResponseText = "";
+        
         if (Array.isArray(data.steps)) {
             const outputStep = data.steps.find(step => step.type === "model_output") || data.steps[data.steps.length - 1];
             if (outputStep?.content) {
                 aiResponseText = outputStep.content.map(c => c.text || "").join("");
             }
+        } else if (data.candidates && data.candidates[0]?.content?.parts) {
+            // Interactionsが従来形式で返却した場合の保険
+            aiResponseText = data.candidates[0].content.parts.map(p => p.text || "").join("");
         }
 
         if (!aiResponseText) {
-            throw new Error("AIからの応答テキストを抽出できませんでした。");
+            throw new Error(`AIからの応答テキストを抽出できませんでした。\n生データ: ${JSON.stringify(data).substring(0, 300)}...`);
         }
 
-        // JSON文字列のクレンジングとパース
+        // 2. JSON文字列のクレンジングとパース
         const cleanedText = aiResponseText.replace(/```json/gi, "").replace(/```/g, "").trim();
-        const parsed = JSON.parse(cleanedText);
+        let parsed;
+        try {
+            parsed = JSON.parse(cleanedText);
+        } catch (e) {
+            throw new Error(`AIがJSON以外のテキストを返しました。\n内容: ${cleanedText}`);
+        }
 
-        // キー名の表記ブレを吸収する堅牢な抽出ロジック（小文字化してマッチング）
+        // 3. どんな階層にキーがあっても探し出す強力な再帰関数
         const findKey = (obj, targetKeys) => {
             if (!obj || typeof obj !== 'object') return "";
+            
+            // 現在の階層をチェック
             const lowerKeys = Object.keys(obj).reduce((acc, k) => ({ ...acc, [k.toLowerCase()]: obj[k] }), {});
             for (const key of targetKeys) {
-                if (lowerKeys[key] !== undefined) return lowerKeys[key];
+                if (lowerKeys[key] !== undefined && typeof lowerKeys[key] === 'string') return lowerKeys[key];
+            }
+            
+            // 子オブジェクトの中を再帰的にチェック
+            for (const key of Object.keys(obj)) {
+                if (typeof obj[key] === 'object') {
+                    const found = findKey(obj[key], targetKeys);
+                    if (found) return found;
+                }
             }
             return "";
         };
 
-        const resultObject = {
-            englishName: findKey(parsed, ["englishname", "english_name", "english", "name"]) || foodName,
-            description: findKey(parsed, ["description", "desc", "explanation"]) || "",
-            phrase: findKey(parsed, ["phrase", "englishphrase", "english_phrase"]) || "",
-            phraseJapanese: findKey(parsed, ["phrasejapanese", "phrase_japanese", "japanese_phrase"]) || ""
-        };
+        const englishName = findKey(parsed, ["englishname", "english_name", "english", "name", "title"]);
+        
+        // 4. 抽出失敗時はサイレントエラーにせず、中身を画面に出力して原因を特定する
+        if (!englishName) {
+            throw new Error(`JSONから 'englishName' を抽出できませんでした。\nAIの実際の出力データ: ${JSON.stringify(parsed)}`);
+        }
+
+        const description = findKey(parsed, ["description", "desc", "explanation"]) || "";
+        const phrase = findKey(parsed, ["phrase", "englishphrase", "english_phrase"]) || "";
+        const phraseJapanese = findKey(parsed, ["phrasejapanese", "phrase_japanese", "japanese_phrase"]) || "";
+
+        const resultObject = { englishName, description, phrase, phraseJapanese };
 
         return new Response(JSON.stringify(resultObject), {
             status: 200,
@@ -89,7 +113,7 @@ export async function onRequestPost(context) {
         });
 
     } catch (error) {
-        return new Response(JSON.stringify({ error: `サーバー処理エラー: ${error.message}` }), { 
+        return new Response(JSON.stringify({ error: error.message }), { 
             status: 500, headers: { "Content-Type": "application/json" } 
         });
     }
