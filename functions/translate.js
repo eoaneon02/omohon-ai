@@ -20,7 +20,7 @@ export async function onRequestPost(context) {
         // プロンプトに日本語訳の出力指示を追加
         const prompt = `あなたは優秀な翻訳家です。日本の飲食店メニューを外国人向けに英語化してください。
 【料理名】${foodName}
-【食材・補足】${ingredients}
+【料理についての説明】${ingredients}
 
 出力は必ず以下のJSONオブジェクト形式（キー名は英字そのまま）で行ってください。
 {
@@ -32,7 +32,7 @@ export async function onRequestPost(context) {
   "phraseJapanese": "接客フレーズの日本語訳"
 }`;
 
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
         
         const apiResponse = await fetch(geminiUrl, {
             method: "POST",
