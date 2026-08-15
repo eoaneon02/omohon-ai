@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>メニュー翻訳AI ジョン満腹郎</title>
+    <title>メニュー翻訳AI もてなしクン</title>
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f7f9fa; padding: 20px; color: #333; margin: 0; }
         .container { max-width: 600px; margin: 20px auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
@@ -23,13 +23,13 @@
 </head>
 <body>
     <div class="container">
-        <h2>メニュー翻訳AI ジョン満腹郎</h2>
+        <h2>メニュー翻訳AI もてなしクン</h2>
         <div class="form-group">
             <label for="foodName">料理名（必須）</label>
             <input type="text" id="foodName" placeholder="例：シェフの気まぐれパスタ">
         </div>
         <div class="form-group">
-            <label for="ingredients">料理の簡単な説明（任意）</label>
+            <label for="ingredients">メイン食材・調理法（任意）</label>
             <input type="text" id="ingredients" placeholder="例：旬の海鮮丼 / 豚肉と野菜の味噌汁">
         </div>
         <button onclick="generateTranslation()" id="submitBtn">英語メニューを生成する</button>
@@ -87,18 +87,19 @@
                     throw new Error(data.error || "通信に失敗しました。");
                 }
 
-                resultDiv.innerHTML = `
+                // 変数名を resultDiv から resultContent に修正
+                resultContent.innerHTML = `
                     <h4 style="font-weight: bold; margin-top: 15px;">【料理名】</h4>
-                    <p style="font-size: 1.1em; color: #2c3e50;">${data.englishName}</p>
-                    <p style="color: #7f8c8d; font-size: 0.9em; margin-bottom: 15px;">（${data.englishNameJapanese}）</p>
+                    <p style="font-size: 1.1em; color: #2c3e50; margin-bottom: 5px;">${data.englishName}</p>
+                    <p style="color: #7f8c8d; font-size: 0.9em; margin-top: 0; margin-bottom: 15px;">（${data.englishNameJapanese}）</p>
 
                     <h4 style="font-weight: bold;">【料理の説明】</h4>
-                    <p style="color: #2c3e50;">${data.description}</p>
-                    <p style="color: #7f8c8d; font-size: 0.9em; margin-bottom: 15px;">（${data.descriptionJapanese}）</p>
+                    <p style="color: #2c3e50; margin-bottom: 5px;">${data.description}</p>
+                    <p style="color: #7f8c8d; font-size: 0.9em; margin-top: 0; margin-bottom: 15px;">（${data.descriptionJapanese}）</p>
 
                     <h4 style="font-weight: bold;">【接客ワンフレーズ】</h4>
-                    <p style="font-style: italic; color: #2c3e50;">"${data.phrase}"</p>
-                    <p style="color: #7f8c8d; font-size: 0.9em;">（${data.phraseJapanese}）</p>
+                    <p style="font-style: italic; color: #2c3e50; margin-bottom: 5px;">"${data.phrase}"</p>
+                    <p style="color: #7f8c8d; font-size: 0.9em; margin-top: 0;">（${data.phraseJapanese}）</p>
                 `;
             } catch (error) {
                 resultContent.innerHTML = `<div class="error-text"><strong>エラーが発生しました:</strong><br>${error.message}</div>`;
